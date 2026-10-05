@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1f6f5c"><title>عيلتنا</title>
+<style>
+:root{--g:#1f6f5c;--bg:#f5f7f6;--c:#fff;--t:#1d2b27;--m:#6b7b76;--b:#dde5e2}
+@media(prefers-color-scheme:dark){:root{--bg:#121816;--c:#1c2623;--t:#e8efec;--m:#8fa19b;--b:#2c3935}}
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:var(--bg);color:var(--t)}
+header{background:var(--g);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+header h1{font-size:18px;margin:0}main{max-width:620px;margin:auto;padding:12px}
+nav{display:flex;gap:6px;margin-bottom:12px}nav button{flex:1;padding:10px;border:1px solid var(--b);background:var(--c);color:var(--t);border-radius:10px;font:inherit}
+nav button.on{background:var(--g);color:#fff;border-color:var(--g)}
+.card{background:var(--c);border:1px solid var(--b);border-radius:12px;padding:12px;margin-bottom:10px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.badge{background:var(--g);color:#fff;border-radius:20px;padding:3px 10px;font-size:13px;white-space:nowrap}
+.badge.today{background:#c0392b}.m{color:var(--m);font-size:13px}
+input,select,textarea,button{font:inherit;color:var(--t)}
+input,select,textarea{width:100%;padding:10px;margin:4px 0;border:1px solid var(--b);border-radius:8px;background:var(--bg)}
+.btn{background:var(--g);color:#fff;border:0;border-radius:8px;padding:10px 16px}
+.x{background:none;border:0;color:#c0392b;font-size:18px}
+.c{text-align:center;padding:60px 20px}
+</style></head><body>
+<header><h1>🏡 عيلتنا</h1><span id="u"></span></header>
+<main id="app"></main>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {getFirestore,collection,addDoc,deleteDoc,doc,setDoc,onSnapshot} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+// ===== الصق إعدادات Firebase هنا =====
+const CFG={apiKey:"AIzaSyBaaKc47cjXrYRcjhApLKGTAOpRNAiTBwU",authDomain:"my-family-app-4f5ce.firebaseapp.com",projectId:"my-family-app-4f5ce",storageBucket:"my-family-app-4f5ce.firebasestorage.app",messagingSenderId:"674407602762",appId:"1:674407602762:web:7d8a462f4492f52fec24b3"};
+const ADMIN="eslamali30@gmail.com"; // إيميل المدير (أنت)
+// ====================================
+
+const app=initializeApp(CFG),auth=getAuth(app),db=getFirestore(app);
+const T={birthday:"🎂 عيد ميلاد",anniversary:"💍 ذكرى سنوية",event:"🎉 مناسبة",memory:"📸 ذكرى"};
+const REC=["birthday","anniversary"];
+let user=null,items=[],members=[],tab="up",denied=false,unsubs=[];
+const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const today=()=>{const t=new Date();t.setHours(0,0,0,0);return t};
+const o=d=>new Date(d+"T00:00:00");
+function left(it){const t=today(),d=o(it.date);
+ if(REC.includes(it.type)){let n=new Date(t.getFullYear(),d.getMonth(),d.getDate());if(n<t)n.setFullYear(t.getFullYear()+1);return Math.round((n-t)/864e5)}
+ return Math.round((d-t)/864e5)}
+const fmt=d=>o(d).toLocaleDateString("ar-EG",{day:"numeric",month:"long",year:"numeric"});
+function when(n){return n===0?'<span class="badge today">النهارده 🎉</span>':n===1?'<span class="badge">بكرة</span>':`<span class="badge">بعد ${n} يوم</span>`}
+
+onAuthStateChanged(auth,u=>{user=u;unsubs.forEach(f=>f());unsubs=[];denied=false;
+ if(u){
+  unsubs.push(onSnapshot(collection(db,"items"),s=>{items=s.docs.map(d=>({id:d.id,...d.data()}));denied=false;render()},()=>{denied=true;render()}));
+  if(u.email===ADMIN)unsubs.push(onSnapshot(collection(db,"members"),s=>{members=s.docs.map(d=>d.id);render()}));
+ }render()});
+
+function render(){
+ $("#u").innerHTML=user?`<button class="x" style="color:#fff;font-size:14px" id="out">خروج</button>`:"";
+ if($("#out"))$("#out").onclick=()=>signOut(auth);
+ const a=$("#app");
+ if(!user){a.innerHTML=`<div class="c"><h2>أهلاً بيك في تطبيق العيلة</h2><p class="m">أعياد الميلاد والمناسبات والذكريات في مكان واحد</p><button class="btn" id="in">الدخول بحساب جوجل</button></div>`;
+  $("#in").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider());return}
+ const admin=user.email===ADMIN;
+ if(denied&&!admin){a.innerHTML=`<div class="c"><h3>الحساب ده مش مضاف للعيلة</h3><p class="m">${esc(user.email)}<br>اطلب من المدير يضيف إيميلك.</p></div>`;return}
+ let h=`<nav><button data-t="up" class="${tab=="up"?"on":""}">القادم</button><button data-t="mem" class="${tab=="mem"?"on":""}">الذكريات</button><button data-t="add" class="${tab=="add"?"on":""}">+ إضافة</button>${admin?`<button data-t="adm" class="${tab=="adm"?"on":""}">الأعضاء</button>`:""}</nav>`;
+ if(tab=="up"){
+  const l=items.filter(i=>i.type!="memory"&&left(i)>=0).sort((x,y)=>left(x)-left(y));
+  h+=l.length?l.map(card).join(""):`<p class="c m">مفيش مناسبات قادمة. ضيف أول واحدة!</p>`}
+ if(tab=="mem"){
+  const l=items.filter(i=>i.type=="memory").sort((x,y)=>y.date.localeCompare(x.date));
+  h+=l.length?l.map(card).join(""):`<p class="c m">لسه مفيش ذكريات.</p>`}
+ if(tab=="add")h+=`<div class="card"><select id="ty">${Object.entries(T).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select>
+  <input id="ti" placeholder="العنوان (مثال: عيد ميلاد ماما)"><input id="dt" type="date"><textarea id="nt" rows="3" placeholder="ملاحظات (اختياري)"></textarea>
+  <button class="btn" id="sv">حفظ</button></div>`;
+ if(tab=="adm")h+=`<div class="card"><p class="m">ضيف إيميلات (Gmail) أفراد العيلة المسموح لهم بالدخول:</p><input id="em" type="email" placeholder="name@gmail.com" dir="ltr"><button class="btn" id="am">إضافة</button></div>`+
+  members.map(e=>`<div class="card row"><span dir="ltr">${esc(e)}</span><button class="x" data-m="${esc(e)}">🗑</button></div>`).join("");
+ a.innerHTML=h;
+ a.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
+ a.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>confirm("تحذف؟")&&deleteDoc(doc(db,"items",b.dataset.d)));
+ a.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>confirm("تشيله؟")&&deleteDoc(doc(db,"members",b.dataset.m)));
+ if($("#sv"))$("#sv").onclick=async()=>{const ti=$("#ti").value.trim(),dt=$("#dt").value;if(!ti||!dt)return alert("اكتب العنوان والتاريخ");
+  await addDoc(collection(db,"items"),{type:$("#ty").value,title:ti,date:dt,notes:$("#nt").value.trim(),by:user.email,byName:user.displayName||user.email});tab="up";render()};
+ if($("#am"))$("#am").onclick=async()=>{const e=$("#em").value.trim().toLowerCase();if(e)await setDoc(doc(db,"members",e),{added:Date.now()});$("#em").value=""};
+}
+function card(i){const n=left(i),mine=user.email===i.by||user.email===ADMIN;
+ const yrs=REC.includes(i.type)||i.type=="memory"?(()=>{const y=new Date().getFullYear()-o(i.date).getFullYear();return y>0?` · ${y} سنة`:""})():"";
+ return `<div class="card"><div class="row"><b>${T[i.type]||""} ${esc(i.title)}</b>${i.type!="memory"?when(n):""}</div>
+ <div class="m">${fmt(i.date)}${yrs}</div>${i.notes?`<p>${esc(i.notes)}</p>`:""}
+ <div class="row m"><span>أضافها: ${esc(i.byName)}</span>${mine?`<button class="x" data-d="${i.id}">🗑</button>`:""}</div></div>`}
+render();
+</script></body></html>
