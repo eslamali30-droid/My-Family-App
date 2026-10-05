@@ -30,12 +30,13 @@ import {getFirestore,collection,addDoc,deleteDoc,doc,setDoc,onSnapshot,query,whe
 const CFG={apiKey:"AIzaSyBaaKc47cjXrYRcjhApLKGTAOpRNAiTBwU",authDomain:"my-family-app-4f5ce.firebaseapp.com",projectId:"my-family-app-4f5ce",storageBucket:"my-family-app-4f5ce.firebasestorage.app",messagingSenderId:"674407602762",appId:"1:674407602762:web:7d8a462f4492f52fec24b3"};
 const ADMIN="eslamali30@gmail.com";
 const app=initializeApp(CFG),auth=getAuth(app),db=getFirestore(app);
-const T={birthday:"🎂 عيد ميلاد",anniversary:"💍 ذكرى سنوية",event:"🎉 مناسبة",memory:"📸 ذكرى"},REC=["birthday","anniversary"];
-let user,me,admin,items=[],tasks=[],done=[],faults=[],members=[],prof={},tab="home",denied=false,un=[];
+const T={birthday:"🎂 عيد ميلاد",anniversary:"💍 ذكرى سنوية",event:"🎉 مناسبة",memory:"📸 ذكرى",capsule:"⏳ كبسولة الزمن"},REC=["birthday","anniversary"];
+let user,me,admin,items=[],tasks=[],done=[],faults=[],members=[],prof={},tab="home",denied=false,un=[],quests=[],tlog=[],thanks=[],rewards=[];
 const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const TD=()=>ymd(new Date()),o=d=>new Date(d+"T00:00:00"),back=n=>{const d=new Date();d.setDate(d.getDate()-n);return ymd(d)};
 const fmt=d=>o(d).toLocaleDateString("ar-EG",{day:"numeric",month:"long",year:"numeric"});
+const opens=i=>{const d=o(i.date);d.setFullYear(d.getFullYear()+1);return ymd(d)};
 function left(i){const t=new Date();t.setHours(0,0,0,0);const d=o(i.date);
  if(REC.includes(i.type)){let n=new Date(t.getFullYear(),d.getMonth(),d.getDate());if(n<t)n.setFullYear(t.getFullYear()+1);return Math.round((n-t)/864e5)}return Math.round((d-t)/864e5)}
 const when=n=>n===0?'<span class="badge t">النهارده 🎉</span>':n===1?'<span class="badge">بكرة</span>':`<span class="badge">بعد ${n} يوم</span>`;
@@ -51,6 +52,10 @@ onAuthStateChanged(auth,u=>{un.forEach(f=>f());un=[];user=u;denied=false;if(u){m
  L(q("tasks"),s=>tasks=s.docs.map(d=>({id:d.id,...d.data()})));
  L(q("done"),s=>done=s.docs.map(d=>({id:d.id,...d.data()})));
  L(q("faults"),s=>faults=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.date.localeCompare(a.date)));
+ L(collection(db,"quests"),s=>quests=s.docs.map(d=>({id:d.id,...d.data()})));
+ L(collection(db,"time"),s=>tlog=s.docs.map(d=>({id:d.id,...d.data()})));
+ L(collection(db,"thanks"),s=>thanks=s.docs.map(d=>({id:d.id,...d.data()})));
+ L(collection(db,"rewards"),s=>rewards=s.docs.map(d=>({id:d.id,...d.data()})));
  L(doc(db,"profiles",me),s=>prof=s.data()||{});
  if(admin)L(collection(db,"members"),s=>members=s.docs.map(d=>d.id));}
  render()});
@@ -60,16 +65,16 @@ function render(){
  const a=$("#app"),nv=$("#nav");
  if(!user){nv.innerHTML="";a.innerHTML=`<div class="c"><h2>أهلاً بيك في تطبيق العيلة</h2><p class="m">المناسبات والروتين والذكريات في مكان واحد</p><button class="btn" id="in">الدخول بحساب جوجل</button></div>`;$("#in").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider());return}
  if(denied&&!admin){nv.innerHTML="";a.innerHTML=`<div class="c"><h3>الحساب ده مش مضاف للعيلة</h3><p class="m">${esc(me)}<br>اطلب من المدير يضيف إيميلك.</p></div>`;return}
- const tabs=[["home","🏠","الرئيسية"],["rt","✅","روتيني"],["up","📅","القادم"],["mem","📸","الذكريات"],["add","➕","إضافة"]];if(admin)tabs.push(["adm","👥","الأعضاء"]);
+ const tabs=[["home","🏠","الرئيسية"],["rt","✅","روتيني"],["up","📅","القادم"],["mem","📸","الذكريات"],["fam","✨","العيلة"],["add","➕","إضافة"]];if(admin)tabs.push(["adm","👥","الأعضاء"]);
  nv.innerHTML=tabs.map(t=>`<button data-t="${t[0]}" class="${tab==t[0]?"on":""}"><b>${t[1]}</b>${t[2]}</button>`).join("");
- a.innerHTML=({home,rt,up:()=>list(false),mem:()=>list(true),add,adm})[tab]();
+ a.innerHTML=({home,rt,up:()=>list(false),mem:()=>list(true),fam,add,adm})[tab]();
  nv.querySelectorAll("button").forEach(b=>b.onclick=()=>{tab=b.dataset.t;render();scrollTo(0,0)});
  bind(a)}
 
 function home(){const D=TD(),p=pct(me,D),n=mine().length,ids=doneOf(me,D);
  let st=0;for(let i=(p===100?0:1);i<90;i++){const q=pct(me,back(i));if(q===100)st++;else break}
  const wk=[6,5,4,3,2,1,0].map(i=>{const q=pct(me,back(i))||0;return `<div><i style="height:${q*.5}px"></i>${o(back(i)).toLocaleDateString("ar-EG",{weekday:"narrow"})}</div>`}).join("");
- const week=[...Array(7)].reduce((s,_,i)=>s+doneOf(me,back(i)).length,0),mf=faults.filter(f=>f.about==me),tdy=items.filter(i=>i.type!="memory"&&left(i)===0);
+ const week=[...Array(7)].reduce((s,_,i)=>s+doneOf(me,back(i)).length,0),mf=faults.filter(f=>f.about==me),tdy=items.filter(i=>!["memory","capsule"].includes(i.type)&&left(i)===0);
  let h=`<div class="card"><h3>أهلاً ${esc((user.displayName||"").split(" ")[0])} 👋</h3><div class="m">${o(D).toLocaleDateString("ar-EG",{weekday:"long",day:"numeric",month:"long"})}</div>
  ${tdy.map(i=>`<p>🎉 النهارده: <b>${esc(i.title)}</b></p>`).join("")}</div>
  <div class="card"><h3>روتين النهارده</h3>${n?`<div class="row"><span class="big">${p}%</span><span class="m">${ids.length} من ${n} مهمة</span></div><div class="bar"><i style="width:${p}%"></i></div>`:`<p class="m">لسه مضفتش مهام. ادخل تبويب "روتيني".</p>`}</div>
@@ -80,14 +85,35 @@ function home(){const D=TD(),p=pct(me,D),n=mine().length,ids=doneOf(me,D);
   h+=`<div class="card"><h3>لوحة العيلة اليوم</h3>${em.map(e=>{const q=pct(e,D),nm=(tasks.find(t=>t.owner==e)||{}).ownerName||e;return `<div class="row" style="margin:6px 0"><span>${esc(nm)}</span><span class="m">${q==null?"—":q+"%"} · ⚠️ ${faults.filter(f=>f.about==e).length}</span></div>`}).join("")||'<p class="m">ضيف أعضاء أولاً.</p>'}</div>
   <div class="card"><h3>تسجيل ملاحظة / خطأ</h3><select id="fa">${members.map(e=>`<option>${esc(e)}</option>`).join("")}</select><input id="ft" placeholder="الملاحظة"><button class="btn" id="fs">تسجيل</button></div>
   ${faults.slice(0,8).map(f=>`<div class="f card"><div class="row"><b>${esc(f.about)}</b><button class="x" data-f="${f.id}">🗑</button></div>${esc(f.text)}<div class="m">${fmt(f.date)}</div></div>`).join("")}`}
- return h}
+ const i1=h.indexOf('<div class="card"><h3>روتين النهارده');h=h.slice(0,i1)+extra()+h.slice(i1);return h}
+
+
+const myXP=()=>done.filter(d=>d.owner==me).reduce((s,d)=>s+d.ids.length*10,0)+quests.reduce((s,q)=>s+((q.doneBy||[]).includes(me)?(q.xp||0):0),0);
+function extra(){const xp=myXP(),lv=Math.floor(xp/100)+1,W=back(6),
+ ds=[...Array(7)].map((_,i)=>pct(me,back(i))).filter(x=>x!=null),avg=ds.length?Math.round(ds.reduce((a,b)=>a+b)/ds.length):0,
+ hrs=tlog.filter(t=>t.date>=W).reduce((a,t)=>a+(+t.hours||0),0),th=thanks.filter(t=>t.date>=W).length,
+ od=items.filter(i=>i.type=="memory"&&i.date.slice(5)==TD().slice(5)&&i.date.slice(0,4)<TD().slice(0,4)),
+ cp=items.filter(i=>i.type=="capsule"&&opens(i)<=TD()&&opens(i)>=back(7));
+ return `<div class="card"><div class="row"><h3>⭐ المستوى ${lv}</h3><span class="m">${xp} نقطة</span></div><div class="bar"><i style="width:${xp%100}%"></i></div></div>
+ <div class="card"><h3>ملخص الأسبوع 🌟</h3><p>أنجزت <b>${avg}%</b> من الروتين، وقضيتم <b>${hrs}</b> ساعة وقت عائلي، وكُتبت <b>${th}</b> رسالة امتنان. عمل رائع!</p></div>`+
+ od.map(i=>`<div class="card">📆 في مثل هذا اليوم: <b>${esc(i.title)}</b> (${fmt(i.date)})</div>`).join("")+
+ cp.map(i=>`<div class="card">⏳ كبسولة اتفتحت: <b>${esc(i.title)}</b> ${i.notes?"<p>"+esc(i.notes)+"</p>":""}${i.photo?`<img class="p" src="${i.photo}">`:""}</div>`).join("")}
+function fam(){const xp=myXP(),W=back(6),hrs=tlog.filter(t=>t.date>=W).reduce((a,t)=>a+(+t.hours||0),0);
+ return `<div class="card"><h3>🎲 نعمل إيه دلوقتي؟</h3><button class="btn" id="rn">اقترح نشاط</button><p id="ro" style="font-size:18px"></p></div>
+ <div class="card"><h3>🤝 مهام جماعية</h3>${quests.map(q=>`<div class="row" style="padding:6px 0"><label class="row" style="gap:10px"><input type="checkbox" data-q="${q.id}" ${(q.doneBy||[]).includes(me)?"checked":""}><span>${esc(q.title)} <span class="m">+${q.xp} نقطة · شارك ${(q.doneBy||[]).length}</span></span></label>${admin?`<button class="x" data-qd="${q.id}">🗑</button>`:""}</div>`).join("")||'<p class="m">مفيش مهام جماعية لسه.</p>'}
+ ${admin?`<input id="qt" placeholder="مهمة جماعية (مثال: صلاة الجماعة)"><input id="qx" type="number" value="30"><button class="btn" id="qa">إضافة</button>`:""}</div>
+ <div class="card"><h3>⏱ وقت عائلي بدون شاشات</h3><div class="big">${hrs} ساعة</div><div class="m">آخر 7 أيام</div><input id="th" type="number" step="0.5" placeholder="عدد الساعات"><input id="tn" placeholder="عملتوا إيه؟"><button class="btn" id="ta2">تسجيل</button></div>
+ <div class="card"><h3>💌 حائط الامتنان</h3><input id="tx" placeholder="شكراً لـ ... لأنه ..."><button class="btn" id="tsend">إرسال</button></div>
+ ${[...thanks].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10).map(t=>`<div class="f card">💌 ${esc(t.text)}<div class="row m"><span>${esc(t.byName)} · ${fmt(t.date)}</span>${(t.by==me||admin)?`<button class="x" data-th="${t.id}">🗑</button>`:""}</div></div>`).join("")}
+ <div class="card"><h3>🎁 المكافآت (نقاطك: ${xp})</h3>${[...rewards].sort((a,b)=>a.cost-b.cost).map(r=>`<div style="margin:8px 0"><div class="row"><span>${esc(r.title)}</span><span class="m">${Math.min(xp,r.cost)}/${r.cost} ${admin?`<button class="x" data-rd="${r.id}">🗑</button>`:""}</span></div><div class="bar"><i style="width:${Math.min(100,xp/r.cost*100)}%"></i></div></div>`).join("")||'<p class="m">المدير يضيف المكافآت.</p>'}
+ ${admin?`<input id="rt" placeholder="مكافأة (مثال: اختيار فيلم السهرة)"><input id="rc" type="number" placeholder="النقاط المطلوبة"><button class="btn" id="ra">إضافة</button>`:""}</div>`}
 
 function rt(){const D=TD(),ids=doneOf(me,D),ts=mine().sort((a,b)=>(a.time||"").localeCompare(b.time||""));
  return `<div class="card"><h3>روتيني اليومي</h3>${ts.map(t=>`<div class="row" style="padding:8px 0;border-bottom:1px solid var(--b)"><label class="row" style="gap:10px"><input type="checkbox" data-k="${t.id}" ${ids.includes(t.id)?"checked":""}><span>${esc(t.title)} <span class="m">${esc(t.time||"")}</span></span></label><button class="x" data-tk="${t.id}">🗑</button></div>`).join("")||'<p class="m">ضيف أول مهمة 👇</p>'}</div>
  <div class="card"><input id="tt" placeholder="مهمة جديدة (مثال: صلاة الفجر)"><input id="tm" type="time"><button class="btn" id="ta">إضافة مهمة</button></div>`}
 
-function list(m){const l=items.filter(i=>m?i.type=="memory":i.type!="memory"&&left(i)>=0).sort((x,y)=>m?y.date.localeCompare(x.date):left(x)-left(y));
- return l.length?l.map(i=>{const my=me==i.by||admin;return `<div class="card"><div class="row"><b>${T[i.type]||""} ${esc(i.title)}</b>${m?"":when(left(i))}</div><div class="m">${fmt(i.date)}</div>${i.notes?`<p>${esc(i.notes)}</p>`:""}${i.photo?`<img class="p" src="${i.photo}">`:""}<div class="row m"><span>${esc(i.byName)}</span>${my?`<button class="x" data-d="${i.id}">🗑</button>`:""}</div></div>`}).join(""):`<p class="c m">مفيش حاجة هنا لسه.</p>`}
+function list(m){const l=items.filter(i=>m?["memory","capsule"].includes(i.type):!["memory","capsule"].includes(i.type)&&left(i)>=0).sort((x,y)=>m?y.date.localeCompare(x.date):left(x)-left(y));
+ return l.length?l.map(i=>{const my=me==i.by||admin;if(i.type=="capsule"&&opens(i)>TD())return `<div class="card"><div class="row"><b>⏳ كبسولة مغلقة</b>${my?`<button class="x" data-d="${i.id}">🗑</button>`:""}</div><div class="m">🔒 تفتح في ${fmt(opens(i))}</div></div>`;return `<div class="card"><div class="row"><b>${T[i.type]||""} ${esc(i.title)}</b>${m?"":when(left(i))}</div><div class="m">${fmt(i.date)}</div>${i.notes?`<p>${esc(i.notes)}</p>`:""}${i.photo?`<img class="p" src="${i.photo}">`:""}<div class="row m"><span>${esc(i.byName)}</span>${my?`<button class="x" data-d="${i.id}">🗑</button>`:""}</div></div>`}).join(""):`<p class="c m">مفيش حاجة هنا لسه.</p>`}
 
 const add=()=>`<div class="card"><select id="ty">${Object.entries(T).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select><input id="ti" placeholder="العنوان"><input id="dt" type="date"><textarea id="nt" rows="3" placeholder="ملاحظات"></textarea><input id="ph" type="file" accept="image/*"><button class="btn" id="sv">حفظ</button></div>`;
 const adm=()=>`<div class="card"><p class="m">أضف إيميلات الجيميل المسموح لها:</p><input id="em" type="email" dir="ltr" placeholder="name@gmail.com"><button class="btn" id="am">إضافة</button></div>`+members.map(e=>`<div class="card row"><span dir="ltr">${esc(e)}</span><button class="x" data-m="${esc(e)}">🗑</button></div>`).join("");
@@ -96,6 +122,15 @@ function bind(a){const on=(s,f)=>{const e=a.querySelector(s);if(e)e.onclick=f},e
  ea("[data-d]",e=>confirm("تحذف؟")&&deleteDoc(doc(db,"items",e.dataset.d)));
  ea("[data-m]",e=>confirm("تشيله؟")&&deleteDoc(doc(db,"members",e.dataset.m)));
  ea("[data-f]",e=>deleteDoc(doc(db,"faults",e.dataset.f)));
+ on("#rn",()=>{const A=["لعبة ورق 🃏","قراءة قصة 📖","المشي 🚶","صنع حلى بسيط 🍰","لعبة جماعية ⚽","فيلم عائلي 🎬","ترتيب ألبوم الصور 📷","تحدي أسئلة معلومات ❓"];$("#ro").textContent=A[Math.floor(Math.random()*A.length)]});
+ a.querySelectorAll("[data-q]").forEach(e=>e.onchange=()=>setDoc(doc(db,"quests",e.dataset.q),{doneBy:(e.checked?arrayUnion:arrayRemove)(me)},{merge:true}));
+ ea("[data-qd]",e=>deleteDoc(doc(db,"quests",e.dataset.qd)));
+ on("#qa",async()=>{const t=$("#qt").value.trim();if(t)await addDoc(collection(db,"quests"),{title:t,xp:+$("#qx").value||30,doneBy:[]})});
+ on("#ta2",async()=>{const h=+$("#th").value;if(h>0)await addDoc(collection(db,"time"),{hours:h,note:$("#tn").value.trim(),date:TD(),by:me})});
+ on("#tsend",async()=>{const t=$("#tx").value.trim();if(t)await addDoc(collection(db,"thanks"),{text:t,by:me,byName:user.displayName||me,date:TD()})});
+ ea("[data-th]",e=>deleteDoc(doc(db,"thanks",e.dataset.th)));
+ on("#ra",async()=>{const t=$("#rt").value.trim(),c=+$("#rc").value;if(t&&c>0)await addDoc(collection(db,"rewards"),{title:t,cost:c})});
+ ea("[data-rd]",e=>deleteDoc(doc(db,"rewards",e.dataset.rd)));
  ea("[data-tk]",e=>confirm("تحذف المهمة؟")&&deleteDoc(doc(db,"tasks",e.dataset.tk)));
  a.querySelectorAll("[data-k]").forEach(e=>e.onchange=()=>setDoc(doc(db,"done",me+"_"+TD()),{owner:me,date:TD(),ids:(e.checked?arrayUnion:arrayRemove)(e.dataset.k)},{merge:true}));
  on("#ta",async()=>{const t=$("#tt").value.trim();if(t)await addDoc(collection(db,"tasks"),{owner:me,ownerName:user.displayName||me,title:t,time:$("#tm").value})});
